@@ -142,11 +142,11 @@
 **************************************/
 #if defined(__cplusplus) || (defined (__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L) /* C99 */)
 # include <stdint.h>
-  typedef  uint8_t BYTE;
-  typedef uint16_t U16;
-  typedef uint32_t U32;
-  typedef  int32_t S32;
-  typedef uint64_t U64;
+  typedef  uint8_t  BYTE;
+  typedef uint16_t  U16;
+  typedef uint32_t  U32;
+  typedef  int32_t  S32;
+  typedef uint64_t  U64;
   typedef uintptr_t uptrval;
 #else
   typedef unsigned char       BYTE;
@@ -162,6 +162,7 @@
 #else
   typedef size_t reg_t;   /* 32-bits in x32 mode */
 #endif
+
 
 /*-************************************
 *  Reading and writing into memory

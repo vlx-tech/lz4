@@ -276,8 +276,8 @@ static int BMK_benchMem(const void* srcBuffer, size_t srcSize,
                     marks[markNb], displayName, (U32)srcSize, (U32)cSize, ratio,
                     (double)srcSize / fastestC );
 
-            (void)fastestD; (void)crcOrig;   /*  unused when decompression disabled */
-#if 1
+            (void)fastestD; (void)crcOrig; (void)totalDTime;   /*  unused when decompression disabled */
+#if 0
             /* Decompression */
             if (!dCompleted) memset(resultBuffer, 0xD6, srcSize);  /* warm result buffer */
 
@@ -337,6 +337,8 @@ static int BMK_benchMem(const void* srcBuffer, size_t srcSize,
                     }   }
                     break;
             }   }   /* CRC Checking */
+#else
+            dCompleted = 1;   /* disabled decompression */
 #endif
         }   /* for (testNb = 1; testNb <= (g_nbSeconds + !g_nbSeconds); testNb++) */
 
@@ -361,8 +363,8 @@ static int BMK_benchMem(const void* srcBuffer, size_t srcSize,
 
 static size_t BMK_findMaxMem(U64 requiredMem)
 {
-    size_t step = 64 MB;
-    BYTE* testmem=NULL;
+    size_t const step = 64 MB;
+    void* testmem = NULL;
 
     requiredMem = (((requiredMem >> 26) + 1) << 26);
     requiredMem += 2*step;
@@ -371,7 +373,7 @@ static size_t BMK_findMaxMem(U64 requiredMem)
     while (!testmem) {
         if (requiredMem > step) requiredMem -= step;
         else requiredMem >>= 1;
-        testmem = (BYTE*) malloc ((size_t)requiredMem);
+        testmem = malloc ((size_t)requiredMem);
     }
     free (testmem);
 
@@ -456,9 +458,9 @@ static void BMK_benchFileTable(const char** fileNamesTable, unsigned nbFiles,
     if (benchedSize==0) EXM_THROW(12, "not enough memory");
     if ((U64)benchedSize > totalSizeToLoad) benchedSize = (size_t)totalSizeToLoad;
     if (benchedSize > LZ4_MAX_INPUT_SIZE) {
-        benchedSize = LZ4_MAX_INPUT_SIZE; 
+        benchedSize = LZ4_MAX_INPUT_SIZE;
         DISPLAY("File(s) bigger than LZ4's max input size; testing %u MB only...\n", (U32)(benchedSize >> 20));
-    } else { 
+    } else {
         if (benchedSize < totalSizeToLoad)
             DISPLAY("Not enough memory; testing %u MB only...\n", (U32)(benchedSize >> 20));
     }
