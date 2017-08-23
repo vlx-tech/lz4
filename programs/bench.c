@@ -308,7 +308,7 @@ static int BMK_benchMem(const void* srcBuffer, size_t srcSize,
             }   }
 
             markNb = (markNb+1) % NB_MARKS;
-            DISPLAYLEVEL(2, "%2s-%-17.17s :%10u ->%10u (%5.3f),%6.1f MB/s ,%6.1f MB/s\r",
+            DISPLAYLEVEL(2, "%2s-%-17.17s :%10u ->%10u (%5.3f),%6.1f MB/s,%7.1f MB/s\r",
                     marks[markNb], displayName, (U32)srcSize, (U32)cSize, ratio,
                     (double)srcSize / fastestC,
                     (double)srcSize / fastestD );
