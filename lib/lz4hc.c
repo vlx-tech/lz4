@@ -365,6 +365,21 @@ FORCE_INLINE int LZ4HC_InsertAndGetWiderMatch (
 
 #else
 
+
+/** LZ4HC_countBack() :
+ * @return : negative value, nb of common bytes before ip/match */
+static int LZ4HC_countBack(const BYTE* const ip, const BYTE* const match,
+                           const BYTE* const iMin, const BYTE* const mMin)
+{
+    int back=0;
+    while ( (ip+back > iMin)
+         && (match+back > mMin)
+         && (ip[back-1] == match[back-1]))
+            back--;
+    return back;
+}
+
+
 FORCE_INLINE int LZ4HC_InsertAndGetWiderMatch (
     LZ4HC_CCtx_internal* hc4,
     const BYTE* const ip,
@@ -399,14 +414,17 @@ FORCE_INLINE int LZ4HC_InsertAndGetWiderMatch (
             const BYTE* const matchPtr = base + matchIndex;
             if (LZ4_read32(matchPtr) == (U32)pattern) {
                 int mlt = MINMATCH + LZ4_count(ip+MINMATCH, matchPtr+MINMATCH, iHighLimit);
+#if 0
+                /* more generic but unfortunately slower ... */
+                int const back = LZ4HC_countBack(ip, matchPtr, iLowLimit, lowPrefixPtr);
+#else
                 int back = 0;
-
                 while ( (ip+back > iLowLimit)
                      && (matchPtr+back > lowPrefixPtr)
                      && (ip[back-1] == matchPtr[back-1])) {
                         back--;
                 }
-
+#endif
                 mlt -= back;
 
                 if (mlt > longest) {
@@ -456,9 +474,28 @@ FORCE_INLINE int LZ4HC_InsertAndGetWiderMatch (
                         size_t const currentSegmentLength = backLength + forwardPatternLength;
 
                         if ( (currentSegmentLength >= srcPatternLength)   /* current pattern segment large enough to contain full srcPatternLength */
-                          && (forwardPatternLength <= srcPatternLength) )  /* haven't reached this position yet */
-                            matchIndex += (U32)forwardPatternLength - (U32)srcPatternLength;  /* best position, pattern might be followed by a match */
-                        else {
+                          && (forwardPatternLength <= srcPatternLength) ) { /* haven't reached this position yet */
+#if 1
+                            matchIndex += (U32)forwardPatternLength - (U32)srcPatternLength;  /* best position, full pattern, might be followed by more match */
+#else
+                            const BYTE* const matchCandidate = matchPtr + (U32)forwardPatternLength - (U32)srcPatternLength;  /* best position, pattern might be followed by more match */
+                            int matchLength = (int)(LZ4_count(ip + srcPatternLength, matchCandidate + srcPatternLength, iHighLimit) + srcPatternLength);
+                            int back = 0;
+                            while ( (ip+back > iLowLimit)
+                                 && (matchPtr+back > lowPrefixPtr)
+                                 && (ip[back-1] == matchPtr[back-1])) {
+                                    back--;
+                            }
+                            matchLength -= back;
+                            if (matchLength > longest) {
+                                longest = matchLength;
+                                *matchpos = base + matchIndex + back;
+                                *startpos = ip + back;
+                            }
+                            matchIndex -= (U32)backLength;
+                            matchIndex -= DELTANEXTU16(chainTable, matchIndex);   /* skip directly to next potential pattern segment */
+#endif
+                        } else {
                             matchIndex -= (U32)backLength;   /* let's go to farthest segment position, will find a match of length currentSegmentLength + maybe some back */
                             //matchIndex -= DELTANEXTU16(chainTable, matchIndex);   /* skip directly to following candidate; slightly faster, but miss some rare corner cases (likely when back is useful)*/
                         }
