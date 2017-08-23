@@ -169,14 +169,14 @@ static unsigned LZ4HC_countPattern(const BYTE* ip, const BYTE* const iEnd, reg_t
 {
     const BYTE* const iStart = ip;
 
-    while (likely(ip<iEnd-3)) {
+    while (likely(ip<iEnd-(sizeof(pattern)-1))) {
         reg_t const diff = LZ4_read_ARCH(ip) ^ pattern;
         if (!diff) { ip+=sizeof(pattern); continue; }
         ip += LZ4_NbCommonBytes(diff);
         return (unsigned)(ip - iStart);
     }
 
-    if ((sizeof(pattern)==8) && (ip<(iEnd-3)) && (LZ4_read32(ip)==(U32)pattern)) { ip+=2; }
+    if ((sizeof(pattern)==8) && (ip<(iEnd-3)) && (LZ4_read32(ip)==(U32)pattern)) { ip+=4; }
     if ((ip<(iEnd-1)) && (LZ4_read16(ip)==(U16)pattern)) { ip+=2; }
     if ((ip<iEnd) && (*ip == (BYTE)pattern)) ip++;
     return (unsigned)(ip - iStart);
