@@ -202,7 +202,10 @@ static unsigned LZ4HC_reverseCountPattern(const BYTE* ip, const BYTE* const iLow
 
 typedef enum { rep_untested, rep_not, rep_confirmed } repeat_state_e;
 
-#if 1
+#if 0
+
+/* attempt to generalize pattern detection and count.
+ * Unfortunately, slower than direct version at this stage */
 
 /* force no inlining */
 #ifdef _MSC_VER
@@ -254,7 +257,7 @@ static U32 LZ4HC_jumpTo_patternCandidate(reg_t pattern, size_t srcPatternLength,
         size_t const currentSegmentLength = backLength + forwardPatternLength;
 
         if ( (currentSegmentLength >= srcPatternLength)   /* current pattern segment is large enough to contain full srcPatternLength */
-          && (forwardPatternLength < srcPatternLength) )  /* search has not reached promising position yet */
+          && (forwardPatternLength <= srcPatternLength) )  /* search has not reached promising position yet */
             matchIndex += (U32)forwardPatternLength - (U32)srcPatternLength;  /* best position, full pattern, plus might be followed by a match */
         else
             matchIndex -= (U32)backLength;   /* let's go immediately to farthest segment position */
@@ -453,11 +456,11 @@ FORCE_INLINE int LZ4HC_InsertAndGetWiderMatch (
                         size_t const currentSegmentLength = backLength + forwardPatternLength;
 
                         if ( (currentSegmentLength >= srcPatternLength)   /* current pattern segment large enough to contain full srcPatternLength */
-                          && (forwardPatternLength < srcPatternLength) )  /* haven't reached this position yet */
+                          && (forwardPatternLength <= srcPatternLength) )  /* haven't reached this position yet */
                             matchIndex += (U32)forwardPatternLength - (U32)srcPatternLength;  /* best position, pattern might be followed by a match */
                         else {
-                            matchIndex -= (U32)backLength;   /* let's go to farthest segment position, will find a match of length currentSegmentLength */
-                            //matchIndex -= DELTANEXTU16(chainTable, matchIndex);   /* skip directly to following candidate; slightly faster, but miss some rare corner cases */
+                            matchIndex -= (U32)backLength;   /* let's go to farthest segment position, will find a match of length currentSegmentLength + maybe some back */
+                            //matchIndex -= DELTANEXTU16(chainTable, matchIndex);   /* skip directly to following candidate; slightly faster, but miss some rare corner cases (likely when back is useful)*/
                         }
         }   }   }   }
     }  /* while ((matchIndex>=lowLimit) && (nbAttempts)) */
