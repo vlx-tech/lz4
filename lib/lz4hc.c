@@ -369,7 +369,7 @@ LZ4_FORCE_INLINE int LZ4HC_encodeSequence (
     U32 const cost = 1 + litCost + litLen + 2 + matchCost;
     g_cost += cost;
 
-    DEBUGLOG(2, "pos:%6u -- literal:%2u, match:%3u, offset:%5u, cost:%2u/%6u",
+    DEBUGLOG(2, "pos:%6u -- literal:%3u, match:%3u, offset:%5u, cost:%3u/%6u",
             (U32)(*anchor - g_base),
             (U32)(*ip - *anchor), (U32)matchLength, (U32)(*ip-match),
             cost, g_cost);
