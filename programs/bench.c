@@ -276,8 +276,10 @@ static int BMK_benchMem(const void* srcBuffer, size_t srcSize,
                     marks[markNb], displayName, (U32)srcSize, (U32)cSize, ratio,
                     (double)srcSize / fastestC );
 
+#if 0
             (void)fastestD; (void)crcOrig;   /*  unused when decompression disabled */
-#if 1
+            dCompleted = 1;
+#else
             /* Decompression */
             if (!dCompleted) memset(resultBuffer, 0xD6, srcSize);  /* warm result buffer */
 

@@ -104,6 +104,8 @@ LZ4_FORCE_INLINE void LZ4HC_Insert (LZ4HC_CCtx_internal* hc4, const BYTE* ip)
     U32 const target = (U32)(ip - base);
     U32 idx = hc4->nextToUpdate;
 
+    DEBUGLOG(6, "LZ4HC_Insert : pos=%u from %u",
+            (U32)(ip - base), idx);
     while (idx < target) {
         U32 const h = LZ4HC_hashPtr(base+idx);
         size_t delta = idx - hashTable[h];
@@ -342,10 +344,6 @@ typedef enum {
     limitedDestSize = 2,
 } limitedOutput_directive;
 
-#ifndef LZ4HC_DEBUG
-#  define LZ4HC_DEBUG 0
-#endif
-
 /* LZ4HC_encodeSequence() :
  * @return : 0 if ok,
  *           1 if buffer issue detected */
@@ -361,14 +359,21 @@ LZ4_FORCE_INLINE int LZ4HC_encodeSequence (
     size_t length;
     BYTE* const token = (*op)++;
 
-#if LZ4HC_DEBUG
-    printf("literal : %u  --  match : %u  --  offset : %u\n",
-           (U32)(*ip - *anchor), (U32)matchLength, (U32)(*ip-match));
+#if defined(LZ4_DEBUG) && (LZ4_DEBUG>=2)
+    static const BYTE* base = NULL;
+    if (base==NULL) base = *anchor;
+
+    DEBUGLOG(2, "pos:%6u -- literal:%2u, match:%3u, offset:%5u",
+            (U32)(*anchor - base),
+            (U32)(*ip - *anchor), (U32)matchLength, (U32)(*ip-match) );
+    DEBUGLOG(6, "ip:%08X -- %08X:match",
+            LZ4_read32(*ip), LZ4_read32(match) );
 #endif
 
     /* Encode Literal length */
     length = (size_t)(*ip - *anchor);
-    if ((limit) && ((*op + (length >> 8) + length + (2 + 1 + LASTLITERALS)) > oend)) return 1;   /* Check output limit */
+    if ((limit) && ((*op + (length >> 8) + length + (2 + 1 + LASTLITERALS)) > oend))
+        return 1;   /* Check output limit */
     if (length >= RUN_MASK) {
         size_t len = length - RUN_MASK;
         *token = (RUN_MASK << ML_BITS);
@@ -386,8 +391,10 @@ LZ4_FORCE_INLINE int LZ4HC_encodeSequence (
     LZ4_writeLE16(*op, (U16)(*ip-match)); *op += 2;
 
     /* Encode MatchLength */
+    assert(matchLength >= MINMATCH);
     length = (size_t)(matchLength - MINMATCH);
-    if ((limit) && (*op + (length >> 8) + (1 + LASTLITERALS) > oend)) return 1;   /* Check output limit */
+    if ((limit) && (*op + (length >> 8) + (1 + LASTLITERALS) > oend))
+        return 1;   /* Check output limit */
     if (length >= ML_MASK) {
         *token += ML_MASK;
         length -= ML_MASK;
@@ -497,7 +504,8 @@ _Search3:
             int correction;
             int new_ml = ml;
             if (new_ml > OPTIMAL_ML) new_ml = OPTIMAL_ML;
-            if (ip+new_ml > start2 + ml2 - MINMATCH) new_ml = (int)(start2 - ip) + ml2 - MINMATCH;
+            if (ip+new_ml > start2 + ml2 - MINMATCH)
+                new_ml = (int)(start2 - ip) + ml2 - MINMATCH;
             correction = new_ml - (int)(start2 - ip);
             if (correction > 0) {
                 start2 += correction;
@@ -632,8 +640,8 @@ static int LZ4HC_getSearchNum(int compressionLevel)
 {
     switch (compressionLevel) {
         default: return 0; /* unused */
-        case 11: return 128;
-        case 12: return 1<<10;
+        case 11: return 1<<12;
+        case 12: return 1<<14;
     }
 }
 
@@ -655,13 +663,13 @@ static int LZ4HC_compress_generic (
                 return LZ4HC_compress_hashChain(ctx, src, dst, srcSizePtr, dstCapacity, 1 << 12, limit);
             case 11:
                 ctx->searchNum = LZ4HC_getSearchNum(cLevel);
-                return LZ4HC_compress_optimal(ctx, src, dst, *srcSizePtr, dstCapacity, limit, 128, 0);
+                return LZ4HC_compress_optimal(ctx, src, dst, *srcSizePtr, dstCapacity, limit, 128 /* sufficient_len */);
             default:
                 cLevel = 12;
                 /* fall-through */
             case 12:
                 ctx->searchNum = LZ4HC_getSearchNum(cLevel);
-                return LZ4HC_compress_optimal(ctx, src, dst, *srcSizePtr, dstCapacity, limit, LZ4_OPT_NUM, 1);
+                return LZ4HC_compress_optimal(ctx, src, dst, *srcSizePtr, dstCapacity, limit, LZ4_OPT_NUM /* sufficient_len */);
         }
     }
     return LZ4HC_compress_hashChain(ctx, src, dst, srcSizePtr, dstCapacity, 1 << (cLevel-1), limit);  /* levels 1-9 */
@@ -749,10 +757,7 @@ int LZ4_loadDictHC (LZ4_streamHC_t* LZ4_streamHCPtr, const char* dictionary, int
     }
     LZ4HC_init (ctxPtr, (const BYTE*)dictionary);
     ctxPtr->end = (const BYTE*)dictionary + dictSize;
-    if (ctxPtr->compressionLevel >= LZ4HC_CLEVEL_OPT_MIN)
-        LZ4HC_updateBinTree(ctxPtr, ctxPtr->end - MFLIMIT, ctxPtr->end - LASTLITERALS);
-    else
-        if (dictSize >= 4) LZ4HC_Insert (ctxPtr, ctxPtr->end-3);
+    if (dictSize >= 4) LZ4HC_Insert (ctxPtr, ctxPtr->end-3);
     return dictSize;
 }
 
@@ -761,10 +766,7 @@ int LZ4_loadDictHC (LZ4_streamHC_t* LZ4_streamHCPtr, const char* dictionary, int
 
 static void LZ4HC_setExternalDict(LZ4HC_CCtx_internal* ctxPtr, const BYTE* newBlock)
 {
-    if (ctxPtr->compressionLevel >= LZ4HC_CLEVEL_OPT_MIN)
-        LZ4HC_updateBinTree(ctxPtr, ctxPtr->end - MFLIMIT, ctxPtr->end - LASTLITERALS);
-    else
-        if (ctxPtr->end >= ctxPtr->base + 4) LZ4HC_Insert (ctxPtr, ctxPtr->end-3);   /* Referencing remaining dictionary content */
+    if (ctxPtr->end >= ctxPtr->base + 4) LZ4HC_Insert (ctxPtr, ctxPtr->end-3);   /* Referencing remaining dictionary content */
 
     /* Only one memory segment for extDict, so any previous extDict is lost at this stage */
     ctxPtr->lowLimit  = ctxPtr->dictLimit;
