@@ -360,12 +360,19 @@ LZ4_FORCE_INLINE int LZ4HC_encodeSequence (
     BYTE* const token = (*op)++;
 
 #if defined(LZ4_DEBUG) && (LZ4_DEBUG>=2)
-    static const BYTE* base = NULL;
-    if (base==NULL) base = *anchor;
+    static const BYTE* g_base = NULL;
+    if (g_base==NULL) g_base = *anchor;
+    static U32 g_cost = 0;
+    U32 const litLen = (*ip - *anchor);
+    U32 const litCost = (litLen>14) ? ((litLen-15)/255) + 1 : 0;
+    U32 const matchCost = (matchLength>14) ? ((matchLength-15)/255) + 1 : 0;
+    U32 const cost = 1 + litCost + litLen + 2 + matchCost;
+    g_cost += cost;
 
-    DEBUGLOG(2, "pos:%6u -- literal:%2u, match:%3u, offset:%5u",
-            (U32)(*anchor - base),
-            (U32)(*ip - *anchor), (U32)matchLength, (U32)(*ip-match) );
+    DEBUGLOG(2, "pos:%6u -- literal:%2u, match:%3u, offset:%5u, cost:%2u/%6u",
+            (U32)(*anchor - g_base),
+            (U32)(*ip - *anchor), (U32)matchLength, (U32)(*ip-match),
+            cost, g_cost);
     DEBUGLOG(6, "ip:%08X -- %08X:match",
             LZ4_read32(*ip), LZ4_read32(match) );
 #endif
