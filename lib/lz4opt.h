@@ -37,11 +37,6 @@
 
 
 typedef struct {
-    int off;
-    int len;
-} LZ4HC_match_t;
-
-typedef struct {
     int price;
     int off;
     int mlen;
@@ -96,7 +91,7 @@ static int LZ4HC_compress_optimal (
     limitedOutput_directive limit,
     size_t sufficient_len)
 {
-    LZ4HC_optimal_t opt[LZ4_OPT_NUM + 1];   /* this uses a bit too much stack memory to my taste ... */
+    LZ4HC_optimal_t opt[LZ4_OPT_NUM + 2];   /* this uses a bit too much stack memory to my taste ... */
 
     const BYTE* ip = (const BYTE*) source;
     const BYTE* anchor = ip;
@@ -144,7 +139,17 @@ static int LZ4HC_compress_optimal (
             for ( ; mlen <= curML ; mlen++) {
                 size_t const cost = LZ4HC_sequencePrice(llen, mlen) - LZ4HC_literalsPrice(llen);
                 SET_PRICE(mlen, mlen, offset, 0, cost);   /* updates last_pos and opt[pos] */
-        }   }
+            }
+            /* complete beyond current match */
+            opt[curML+1].mlen = 1;  /* literal */
+            opt[curML+1].off = 0;
+            opt[curML+1].litlen = 1;
+            opt[curML+1].price = opt[curML].price + LZ4HC_literalsPrice(1);
+            opt[curML+2].mlen = 1;  /* literal */
+            opt[curML+2].off = 0;
+            opt[curML+2].litlen = 2;
+            opt[curML+2].price = opt[curML].price + LZ4HC_literalsPrice(2);
+        }
         assert(last_pos >= MINMATCH);
         assert(opt[0].mlen == 1);
         assert(opt[1].mlen == 1);
@@ -156,7 +161,7 @@ static int LZ4HC_compress_optimal (
 
             const BYTE* matchPtr;
             size_t const longerML = LZ4HC_InsertAndGetWiderMatch(ctx,
-                                        curPtr, (curPtr+2-curML), matchlimit,
+                                        curPtr, (ip + last_pos - curML), matchlimit,
                                         (int)curML,
                                         &matchPtr, &curPtr,
                                         ctx->searchNum);
@@ -175,14 +180,9 @@ static int LZ4HC_compress_optimal (
                 goto encode;
             }
 
-            /* set prices using matches at position = cur */
-            while (cur + MINMATCH > last_pos) {
-                last_pos++;
-                opt[last_pos].mlen = 1;
-                opt[last_pos].litlen = 1;
-                opt[last_pos].price = opt[last_pos-1].price + (int)LZ4HC_literalsPrice(1);
-            }
+            /* set prices from position = cur */
             {   size_t ml;
+                /* not necessary to write for positions < cur+MINMATCH, they were already completed with additional literals */
                 for (ml = MINMATCH ; ml <= longerML ; ml++) {
                     size_t ll, price;
                     if (opt[cur].mlen == 1) {
@@ -199,6 +199,15 @@ static int LZ4HC_compress_optimal (
                     if (cur + ml > last_pos || price < (size_t)opt[cur + ml].price) {
                         SET_PRICE(cur + ml, ml, (curPtr - matchPtr), ll, price); /* updates last_pos and opt[pos] */
             }   }   }
+            /* complete beyond current match */
+            opt[last_pos+1].mlen = 1;  /* literal */
+            opt[last_pos+1].off = 0;
+            opt[last_pos+1].litlen = 1;
+            opt[last_pos+1].price = opt[last_pos].price + LZ4HC_literalsPrice(1);
+            opt[last_pos+2].mlen = 1;  /* literal */
+            opt[last_pos+2].off = 0;
+            opt[last_pos+2].litlen = 2;
+            opt[last_pos+2].price = opt[last_pos].price + LZ4HC_literalsPrice(2);
             curML = longerML;  /* next attempt, find larger */
         }  /* for (cur = 1; cur <= last_pos; cur++) */
 
