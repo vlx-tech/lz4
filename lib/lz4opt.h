@@ -144,11 +144,11 @@ static int LZ4HC_compress_optimal (
             opt[curML+1].mlen = 1;  /* literal */
             opt[curML+1].off = 0;
             opt[curML+1].litlen = 1;
-            opt[curML+1].price = opt[curML].price + LZ4HC_literalsPrice(1);
+            opt[curML+1].price = (int)(opt[curML].price + LZ4HC_literalsPrice(1));
             opt[curML+2].mlen = 1;  /* literal */
             opt[curML+2].off = 0;
             opt[curML+2].litlen = 2;
-            opt[curML+2].price = opt[curML].price + LZ4HC_literalsPrice(2);
+            opt[curML+2].price = (int)(opt[curML].price + LZ4HC_literalsPrice(2));
         }
         assert(last_pos >= MINMATCH);
         assert(opt[0].mlen == 1);
@@ -203,11 +203,11 @@ static int LZ4HC_compress_optimal (
             opt[last_pos+1].mlen = 1;  /* literal */
             opt[last_pos+1].off = 0;
             opt[last_pos+1].litlen = 1;
-            opt[last_pos+1].price = opt[last_pos].price + LZ4HC_literalsPrice(1);
+            opt[last_pos+1].price = (int)(opt[last_pos].price + LZ4HC_literalsPrice(1));
             opt[last_pos+2].mlen = 1;  /* literal */
             opt[last_pos+2].off = 0;
             opt[last_pos+2].litlen = 2;
-            opt[last_pos+2].price = opt[last_pos].price + LZ4HC_literalsPrice(2);
+            opt[last_pos+2].price = (int)(opt[last_pos].price + LZ4HC_literalsPrice(2));
             curML = longerML;  /* next attempt, find larger */
         }  /* for (cur = 1; cur <= last_pos; cur++) */
 
