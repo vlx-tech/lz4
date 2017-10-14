@@ -190,7 +190,6 @@ LZ4_FORCE_INLINE int LZ4HC_InsertAndGetWiderMatch (
     repeat_state_e repeat = rep_untested;
     size_t srcPatternLength = 0;
 
-
     /* First Match */
     LZ4HC_Insert(hc4, ip);
     matchIndex = HashTable[LZ4HC_hashPtr(ip)];
