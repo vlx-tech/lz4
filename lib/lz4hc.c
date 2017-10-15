@@ -201,17 +201,12 @@ LZ4_FORCE_INLINE int LZ4HC_InsertAndGetWiderMatch (
             if (*(iLowLimit + longest) == *(matchPtr - delta + longest)) {
                 if (LZ4_read32(matchPtr) == (U32)pattern) {
                     int mlt = MINMATCH + LZ4_count(ip+MINMATCH, matchPtr+MINMATCH, iHighLimit);
-    #if 0
-                    /* more generic but unfortunately slower ... */
-                    int const back = LZ4HC_countBack(ip, matchPtr, iLowLimit, lowPrefixPtr);
-    #else
                     int back = 0;
                     while ( (ip+back > iLowLimit)
                          && (matchPtr+back > lowPrefixPtr)
                          && (ip[back-1] == matchPtr[back-1])) {
                             back--;
                     }
-    #endif
                     mlt -= back;
 
                     if (mlt > longest) {
@@ -274,6 +269,7 @@ LZ4_FORCE_INLINE int LZ4HC_InsertAndGetWiderMatch (
 }
 
 #if 1
+
 LZ4_FORCE_INLINE
 int LZ4HC_InsertAndFindBestMatch(LZ4HC_CCtx_internal* const hc4,   /* Index table will be updated */
                                 const BYTE* const ip, const BYTE* const iLimit,
