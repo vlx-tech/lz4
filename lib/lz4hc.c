@@ -104,7 +104,7 @@ LZ4_FORCE_INLINE void LZ4HC_Insert (LZ4HC_CCtx_internal* hc4, const BYTE* ip)
     U32 const target = (U32)(ip - base);
     U32 idx = hc4->nextToUpdate;
 
-    DEBUGLOG(6, "LZ4HC_Insert : pos=%u from %u",
+    DEBUGLOG(7, "LZ4HC_Insert : pos=%u from %u",
             (U32)(ip - base), idx);
     while (idx < target) {
         U32 const h = LZ4HC_hashPtr(base+idx);
@@ -362,11 +362,12 @@ LZ4_FORCE_INLINE int LZ4HC_encodeSequence (
     U32 const litCost = (litLen>14) ? ((litLen-15)/255) + 1 : 0;
     U32 const matchCost = (matchLength>14) ? ((matchLength-15)/255) + 1 : 0;
     U32 const cost = 1 + litCost + litLen + 2 + matchCost;
+    U32 const pos = (U32)(*anchor - g_base);
     g_cost += cost;
 
+    if (pos < 100000)
     DEBUGLOG(2, "pos:%6u -- literal:%3u, match:%3u, offset:%5u, cost:%3u/%6u",
-            (U32)(*anchor - g_base),
-            (U32)(*ip - *anchor), (U32)matchLength, (U32)(*ip-match),
+            pos, (U32)(*ip - *anchor), (U32)matchLength, (U32)(*ip-match),
             cost, g_cost);
     DEBUGLOG(6, "ip:%08X -- %08X:match",
             LZ4_read32(*ip), LZ4_read32(match) );
