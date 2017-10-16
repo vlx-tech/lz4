@@ -178,7 +178,7 @@ LZ4_FORCE_INLINE int LZ4HC_FindWidestMatch (
 
 #define SET_PRICE(pos, ml, offset, ll, cost)           \
 {                                                      \
-    while (last_pos < pos)  { opt[last_pos+1].price = 1<<30; last_pos++; } \
+    while (last_match_pos < pos)  { opt[last_match_pos+1].price = 1<<30; last_match_pos++; } \
     opt[pos].mlen = (int)ml;                           \
     opt[pos].off = (int)offset;                        \
     opt[pos].litlen = (int)ll;                         \
@@ -215,7 +215,7 @@ static int LZ4HC_compress_optimal (
     /* Main Loop */
     while (ip < mflimit) {
         size_t const llen = ip - anchor;
-        size_t last_pos = 0;
+        size_t last_match_pos = 0;
         size_t cur, best_mlen, best_off;
         const BYTE* matchPos = NULL;
 
@@ -234,7 +234,7 @@ static int LZ4HC_compress_optimal (
             best_mlen = curML;
             best_off = ip - matchPos;
             cur = 0;
-            last_pos = 1;
+            last_match_pos = 1;
             goto encode;
         }
 
@@ -248,21 +248,21 @@ static int LZ4HC_compress_optimal (
             assert(curML < LZ4_OPT_NUM);  /* curML < sufficient_len < LZ4_OPT_NUM */
             for ( ; mlen <= curML ; mlen++) {
                 size_t const cost = LZ4HC_sequencePrice(llen, mlen) - LZ4HC_literalsPrice(llen);
-                SET_PRICE(mlen, mlen, offset, 0, cost);   /* updates last_pos and opt[pos] */
+                SET_PRICE(mlen, mlen, offset, 0, cost);   /* updates last_match_pos and opt[pos] */
             }
         }
-        assert(last_pos >= MINMATCH);
+        assert(last_match_pos >= MINMATCH);
         assert(opt[0].mlen == 1);
         assert(opt[1].mlen == 1);
 
         /* check further positions */
         for ( ; ; ) {
-            const BYTE* curPtr = ip + last_pos - 2;
+            const BYTE* curPtr = ip + last_match_pos - 2;
             if (curPtr >= mflimit) break;
 
             {   U32 offset = 0;
                 size_t const newML = LZ4HC_FindWidestMatch(ctx,
-                                            curPtr, (ip + last_pos - curML), matchlimit,
+                                            curPtr, (ip + last_match_pos - curML), matchlimit,
                                             &offset, &curPtr,
                                             ctx->searchNum);
                 cur = curPtr - ip;
@@ -276,7 +276,7 @@ static int LZ4HC_compress_optimal (
                     /* immediate encoding */
                     best_mlen = newML;
                     best_off = offset;
-                    last_pos = cur + 1;
+                    last_match_pos = cur + 1;
                     goto encode;
                 }
 
@@ -286,9 +286,9 @@ static int LZ4HC_compress_optimal (
 
                     /* update base cost : add literals */
                     assert(cur+newML < LZ4_OPT_NUM);  /* otherwise, immediate encoding */
-                    assert(cur+1 <= last_pos);
+                    assert(cur+1 <= last_match_pos);
                     for (ml = 2; ml <= newML; ml++) {
-                        if (cur+ml > last_pos) {
+                        if (cur+ml > last_match_pos) {
                             U32 const pos = cur + ml;
                             opt[pos].mlen = 1;  /* literal */
                             opt[pos].off = 0;
@@ -319,19 +319,19 @@ static int LZ4HC_compress_optimal (
                         if (ml == newML)
                             matchUseful = (price < (size_t)opt[cur+ml].price);
                         if (price < (size_t)opt[cur+ml].price) {
-                            SET_PRICE(cur+ml, ml, offset, ll, price); /* updates last_pos and opt[pos] */
+                            SET_PRICE(cur+ml, ml, offset, ll, price); /* updates last_match_pos and opt[pos] */
                     }   }
                     if (!matchUseful) break;  /* this match wasn't useful, let's stop the serie */
                 }
                 curML = newML;  /* next attempt, find larger */
             }  /* matchPtr, newML */
-        }  /* for (cur = 1; cur <= last_pos; cur++) */
+        }  /* for (cur = 1; cur <= last_match_pos; cur++) */
 
-        best_mlen = opt[last_pos].mlen;
-        best_off = opt[last_pos].off;
-        cur = last_pos - best_mlen;
+        best_mlen = opt[last_match_pos].mlen;
+        best_off = opt[last_match_pos].off;
+        cur = last_match_pos - best_mlen;
 
-encode: /* cur, last_pos, best_mlen, best_off must be set */
+encode: /* cur, last_match_pos, best_mlen, best_off must be set */
         opt[0].mlen = 1;
         DEBUGLOG(6, "sequence reverse traversal");
         while (1) {  /* from end to beginning */
@@ -348,11 +348,11 @@ encode: /* cur, last_pos, best_mlen, best_off must be set */
 
         /* encode all recorded sequences */
         cur = 0;
-        while (cur < last_pos) {
+        while (cur < last_match_pos) {
             int const ml = opt[cur].mlen;
             int const offset = opt[cur].off;
             if (ml == 1) { ip++; cur++; continue; }
-            DEBUGLOG(6, "sending sequence from cur:%3u / %3u", (U32)cur, (U32)last_pos);
+            DEBUGLOG(6, "sending sequence from cur:%3u / %3u", (U32)cur, (U32)last_match_pos);
             cur += ml;
             if ( LZ4HC_encodeSequence(&ip, &op, &anchor, ml, ip - offset, limit, oend) ) return 0;
         }
