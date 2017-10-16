@@ -332,19 +332,27 @@ static int LZ4HC_compress_optimal (
         cur = last_match_pos - best_mlen;
 
 encode: /* cur, last_match_pos, best_mlen, best_off must be set */
+        assert(cur < LZ4_OPT_NUM);
+        assert(last_match_pos >= 1);  /* == 1 when only one candidate */
+        assert(best_mlen >= MINMATCH);
+        assert((best_off >= 1) && (best_off <=65535));
         opt[0].mlen = 1;
         DEBUGLOG(6, "sequence reverse traversal");
-        while (1) {  /* from end to beginning */
-            size_t const ml = opt[cur].mlen;
-            int const offset = opt[cur].off;
-            opt[cur].mlen = (int)best_mlen;
-            opt[cur].off = (int)best_off;
-            DEBUGLOG(6, "cur:%3u, ml:%3u", (U32)cur, (U32)best_mlen);
-            best_mlen = ml;
-            best_off = offset;
-            if (ml > cur) break;
-            cur -= ml;
-        }
+        {   int candidate_pos = (int)cur;
+            int selected_matchLength = (int)best_mlen;
+            int selected_offset = (int)best_off;
+            while (1) {  /* from end to beginning */
+                int const next_matchLength = opt[candidate_pos].mlen;
+                int const next_offset = opt[candidate_pos].off;
+                assert(next_matchLength > 0); /* note : can be 1, means literal */
+                opt[candidate_pos].mlen = selected_matchLength;
+                opt[candidate_pos].off = selected_offset;
+                DEBUGLOG(6, "rPos:%3i, matchLength:%3i", candidate_pos, selected_matchLength);
+                selected_matchLength = next_matchLength;
+                selected_offset = next_offset;
+                if (next_matchLength > candidate_pos) break; /* last match elected, first match to encode */
+                candidate_pos -= next_matchLength;
+        }   }
 
         /* encode all recorded sequences in order */
         {   size_t rPos = 0;  /* relative position (to ip) */
