@@ -346,16 +346,18 @@ encode: /* cur, last_match_pos, best_mlen, best_off must be set */
             cur -= ml;
         }
 
-        /* encode all recorded sequences */
-        cur = 0;
-        while (cur < last_match_pos) {
-            int const ml = opt[cur].mlen;
-            int const offset = opt[cur].off;
-            if (ml == 1) { ip++; cur++; continue; }
-            DEBUGLOG(6, "sending sequence from cur:%3u / %3u", (U32)cur, (U32)last_match_pos);
-            cur += ml;
-            if ( LZ4HC_encodeSequence(&ip, &op, &anchor, ml, ip - offset, limit, oend) ) return 0;
-        }
+        /* encode all recorded sequences in order */
+        {   size_t rPos = 0;  /* relative position (to ip) */
+            while (rPos < last_match_pos) {
+                int const ml = opt[rPos].mlen;
+                int const offset = opt[rPos].off;
+                if (ml == 1) { ip++; rPos++; continue; }  /* literal */
+                DEBUGLOG(6, "sending sequence from rPos:%3u / %3u",
+                            (U32)rPos, (U32)last_match_pos);
+                rPos += ml;
+                if ( LZ4HC_encodeSequence(&ip, &op, &anchor, ml, ip - offset, limit, oend) )   /* updates ip, op and anchor */
+                    return 0;  /* error */
+        }   }
     }  /* while (ip < mflimit) */
 
     /* Encode Last Literals */
