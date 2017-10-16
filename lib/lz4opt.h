@@ -289,7 +289,7 @@ static int LZ4HC_compress_optimal (
                     assert(cur+1 <= last_match_pos);
                     for (ml = 2; ml <= newML; ml++) {
                         if (cur+ml > last_match_pos) {
-                            U32 const pos = cur + ml;
+                            U32 const pos = (U32)(cur + ml);
                             opt[pos].mlen = 1;  /* literal */
                             opt[pos].off = 0;
                             assert(pos >= 1);
