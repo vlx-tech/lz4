@@ -242,13 +242,13 @@ static int LZ4HC_compress_optimal (
         {   size_t const offset = (size_t)(ip - matchPos);
             size_t mlen;
             for (mlen = 0 ; mlen < MINMATCH ; mlen++) {
-                size_t const cost = LZ4HC_literalsPrice(llen + mlen) - LZ4HC_literalsPrice(llen);
-                SET_PRICE(mlen, 1 /*mlen*/, 0 /*off*/, mlen /*ll*/, cost);
+                size_t const cost = LZ4HC_literalsPrice(llen + mlen);
+                SET_PRICE(mlen, 1 /*mlen*/, 0 /*off*/, llen + mlen /*ll*/, cost);
             }
             assert(curML < LZ4_OPT_NUM);  /* curML < sufficient_len < LZ4_OPT_NUM */
             for ( ; mlen <= curML ; mlen++) {
-                size_t const cost = LZ4HC_sequencePrice(llen, mlen) - LZ4HC_literalsPrice(llen);
-                SET_PRICE(mlen, mlen, offset, 0, cost);   /* updates last_match_pos and opt[pos] */
+                size_t const cost = LZ4HC_sequencePrice(llen, mlen);
+                SET_PRICE(mlen /*pos*/, mlen /*mlen*/, offset, llen /*ll*/, cost);   /* updates last_match_pos and opt[pos] */
             }
         }
         assert(last_match_pos >= MINMATCH);
@@ -309,7 +309,7 @@ static int LZ4HC_compress_optimal (
                             if (cur > ll)
                                 price = opt[cur - ll].price + LZ4HC_sequencePrice(ll, ml);
                             else  /* some literals before ip */
-                                price = LZ4HC_sequencePrice(llen + ll, ml) - LZ4HC_literalsPrice(llen);
+                                price = LZ4HC_sequencePrice(ll, ml);
                         } else {
                             ll = 0;
                             price = opt[cur].price + LZ4HC_sequencePrice(0, ml);
@@ -319,7 +319,7 @@ static int LZ4HC_compress_optimal (
                         if (ml == newML)
                             matchUseful = (price < (size_t)opt[cur+ml].price);
                         if (price < (size_t)opt[cur+ml].price) {
-                            SET_PRICE(cur+ml, ml, offset, ll, price); /* updates last_match_pos and opt[pos] */
+                            SET_PRICE(cur+ml /*pos*/, ml, offset, ll, price); /* updates last_match_pos and opt[pos] */
                     }   }
                     if (!matchUseful) break;  /* this match wasn't useful, let's stop the serie */
                 }
