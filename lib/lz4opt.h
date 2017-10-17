@@ -176,18 +176,6 @@ LZ4_FORCE_INLINE int LZ4HC_FindWidestMatch (
 }
 
 
-#define SET_PRICE(pos, ml, offset, ll, cost)           \
-{                                                      \
-    while (last_match_pos < pos)  { opt[last_match_pos+1].price = 1<<30; last_match_pos++; } \
-    opt[pos].mlen = (int)(ml);                         \
-    opt[pos].off = (int)(offset);                      \
-    opt[pos].litlen = (int)(ll);                       \
-    opt[pos].price = (int)(cost);                      \
-    DEBUGLOG(7, "cur:%3u => cost:%3u (ml=%u)",         \
-            (U32)(pos), (U32)(cost), (U32)(ml));       \
-}
-
-
 /* LZ4HC_addCandidate() :
  * set prices from position = cur */
 static int LZ4HC_addCandidate(LZ4HC_optimal_t* opt, size_t* last_match_pos_ptr,
@@ -273,9 +261,9 @@ static int LZ4HC_compress_optimal (
         size_t const llen = ip - anchor;
         size_t last_match_pos = 0;
         size_t cur, best_mlen, best_off;
-        const BYTE* matchPos = NULL;
 
-        size_t firstML = LZ4HC_InsertAndFindBestMatch(ctx, ip, matchlimit, &matchPos, ctx->searchNum);
+        const BYTE* matchPos = NULL;
+        size_t const firstML = LZ4HC_InsertAndFindBestMatch(ctx, ip, matchlimit, &matchPos, ctx->searchNum);
         if (firstML < MINMATCH) {
             DEBUGLOG(6, "pos: %u : no match found", (U32)(ip-(const BYTE*)source));
             ip++;
@@ -283,7 +271,6 @@ static int LZ4HC_compress_optimal (
         }
         DEBUGLOG(6, "pos: %u : found initial match of length %u",
                     (U32)(ip-(const BYTE*)source), (U32)firstML);
-        memset(opt, 0, sizeof(opt[0]));  /* memset first position only */
 
         if (firstML >= sufficient_len) {
             /* good enough solution : immediate encoding */
@@ -297,47 +284,52 @@ static int LZ4HC_compress_optimal (
             size_t mlen;
             for (mlen = 0 ; mlen < MINMATCH ; mlen++) {
                 size_t const cost = LZ4HC_literalsPrice(llen + mlen);
-                SET_PRICE(mlen, 1 /*mlen*/, 0 /*off*/, llen + mlen /*ll*/, cost);
+                opt[mlen].mlen = 1;
+                opt[mlen].off = 0;
+                opt[mlen].litlen = (int)(llen + mlen);
+                opt[mlen].price = (int)(cost);
+                DEBUGLOG(7, "rPos:%3u => cost:%3u (litlen=%i)",
+                            (U32)mlen, (U32)(cost), opt[mlen].litlen);
             }
             assert(firstML < LZ4_OPT_NUM);  /* firstML < sufficient_len < LZ4_OPT_NUM */
             for ( ; mlen <= firstML ; mlen++) {
                 size_t const cost = LZ4HC_sequencePrice(llen, mlen);
-                SET_PRICE(mlen /*pos*/, mlen /*mlen*/, offset, llen /*ll*/, cost);   /* updates last_match_pos and opt[pos] */
-            }
-        }
-        assert(last_match_pos >= MINMATCH);
-        assert(opt[0].mlen == 1);
-        assert(opt[1].mlen == 1);
+                opt[mlen].mlen = (int)mlen;
+                opt[mlen].off = (int)offset;
+                opt[mlen].litlen = (int)llen;
+                opt[mlen].price = (int)cost;
+                DEBUGLOG(7, "rPos:%3u => cost:%3u (ml=%u)",
+                            (U32)mlen, (U32)cost, (U32)mlen);
+        }   }
+        last_match_pos = firstML;
 
         /* check further positions */
-        for ( ; ; ) {
+        assert(last_match_pos >= MINMATCH);
+        for ( ; ip + last_match_pos - 2 < mflimit; ) {
             const BYTE* curPtr = ip + last_match_pos - 2;
-            if (curPtr >= mflimit) break;
+            U32 offset = 0;
+            size_t const newML = LZ4HC_FindWidestMatch(ctx,
+                                        curPtr, ip, matchlimit,
+                                        &offset, &curPtr,
+                                        ctx->searchNum);
+            cur = curPtr - ip;
 
-            {   U32 offset = 0;
-                size_t const newML = LZ4HC_FindWidestMatch(ctx,
-                                            curPtr, ip, matchlimit,
-                                            &offset, &curPtr,
-                                            ctx->searchNum);
-                cur = curPtr - ip;
+            if (newML < MINMATCH) break;  /* no match */
+            DEBUGLOG(6, "found match of length %u, starting at pos %u",
+                    (U32)newML, (U32)cur);
 
-                if (newML < MINMATCH) break;  /* no match */
-                DEBUGLOG(6, "found match of length %u, starting at pos %u",
-                        (U32)newML, (U32)cur);
+            if ( (newML > sufficient_len)
+              || (cur+newML >= LZ4_OPT_NUM-1) ) {
+                /* immediate encoding */
+                best_mlen = newML;
+                best_off = offset;
+                last_match_pos = cur + 1;
+                goto encode;
+            }
 
-                if ( (newML > sufficient_len)
-                  || (cur+newML >= LZ4_OPT_NUM-1) ) {
-                    /* immediate encoding */
-                    best_mlen = newML;
-                    best_off = offset;
-                    last_match_pos = cur + 1;
-                    goto encode;
-                }
+            if (!LZ4HC_addCandidate(opt, &last_match_pos, cur, newML, offset))
+                break;  /* this match wasn't useful, let's stop the serie */
 
-                if (!LZ4HC_addCandidate(opt, &last_match_pos, cur, newML, offset))
-                    break;  /* this match wasn't useful, let's stop the serie */
-
-            }  /* offset, newML */
         }  /* check further positions */
 
         best_mlen = opt[last_match_pos].mlen;
