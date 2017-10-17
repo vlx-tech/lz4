@@ -179,10 +179,10 @@ LZ4_FORCE_INLINE int LZ4HC_FindWidestMatch (
 #define SET_PRICE(pos, ml, offset, ll, cost)           \
 {                                                      \
     while (last_match_pos < pos)  { opt[last_match_pos+1].price = 1<<30; last_match_pos++; } \
-    opt[pos].mlen = (int)ml;                           \
-    opt[pos].off = (int)offset;                        \
-    opt[pos].litlen = (int)ll;                         \
-    opt[pos].price = (int)cost;                        \
+    opt[pos].mlen = (int)(ml);                         \
+    opt[pos].off = (int)(offset);                      \
+    opt[pos].litlen = (int)(ll);                       \
+    opt[pos].price = (int)(cost);                      \
     DEBUGLOG(7, "cur:%3u => cost:%3u (ml=%u)",         \
             (U32)(pos), (U32)(cost), (U32)(ml));       \
 }
@@ -193,7 +193,7 @@ static int LZ4HC_compress_optimal (
     char* dest,
     int inputSize,
     int maxOutputSize,
-    limitedOutput_directive limit,
+    limitedOutput_directive const limit,
     size_t sufficient_len)
 {
     LZ4HC_optimal_t opt[LZ4_OPT_NUM + 2];   /* this uses a bit too much stack memory to my taste ... */
@@ -231,11 +231,9 @@ static int LZ4HC_compress_optimal (
 
         if (curML >= sufficient_len) {
             /* good enough solution : immediate encoding */
-            best_mlen = curML;
-            best_off = ip - matchPos;
-            cur = 0;
-            last_match_pos = 1;
-            goto encode;
+            if ( LZ4HC_encodeSequence(&ip, &op, &anchor, (int)curML, matchPos, limit, oend) )   /* updates ip, op and anchor */
+                return 0;  /* error */
+            continue;
         }
 
         /* set prices using matches at position = 0 */
@@ -259,6 +257,7 @@ static int LZ4HC_compress_optimal (
         for ( ; ; ) {
             const BYTE* curPtr = ip + last_match_pos - 2;
             if (curPtr >= mflimit) break;
+            assert(curML <= last_match_pos);
 
             {   U32 offset = 0;
                 size_t const newML = LZ4HC_FindWidestMatch(ctx,
@@ -299,9 +298,7 @@ static int LZ4HC_compress_optimal (
                             } else {
                                 opt[pos].litlen = opt[pos-1].litlen + 1;
                                 opt[pos].price = (int)(opt[pos-1].price - LZ4HC_literalsPrice(opt[pos-1].litlen) + LZ4HC_literalsPrice(opt[pos].litlen));
-                            }
-                        }
-                    }
+                    }   }   }
                     for (ml = MINMATCH ; ml <= newML ; ml++) {
                         size_t ll, price;
                         if (opt[cur].mlen == 1) {
@@ -325,7 +322,7 @@ static int LZ4HC_compress_optimal (
                 }
                 curML = newML;  /* next attempt, find larger */
             }  /* matchPtr, newML */
-        }  /* for (cur = 1; cur <= last_match_pos; cur++) */
+        }  /* check further positions */
 
         best_mlen = opt[last_match_pos].mlen;
         best_off = opt[last_match_pos].off;
@@ -370,9 +367,15 @@ encode: /* cur, last_match_pos, best_mlen, best_off must be set */
 
     /* Encode Last Literals */
     {   int lastRun = (int)(iend - anchor);
-        if ((limit) && (((char*)op - dest) + lastRun + 1 + ((lastRun+255-RUN_MASK)/255) > (U32)maxOutputSize)) return 0;  /* Check output limit */
-        if (lastRun>=(int)RUN_MASK) { *op++=(RUN_MASK<<ML_BITS); lastRun-=RUN_MASK; for(; lastRun > 254 ; lastRun-=255) *op++ = 255; *op++ = (BYTE) lastRun; }
-        else *op++ = (BYTE)(lastRun<<ML_BITS);
+        if ( (limit)  /* Check output limit */
+          && (((char*)op - dest) + lastRun + 1 + ((lastRun+255-RUN_MASK)/255) > (U32)maxOutputSize))
+            return 0;
+        if (lastRun >= (int)RUN_MASK) {
+            *op++ = (RUN_MASK<<ML_BITS);
+            lastRun -= RUN_MASK;
+            for(; lastRun > 254 ; lastRun-=255) *op++ = 255;
+            *op++ = (BYTE) lastRun;
+        } else *op++ = (BYTE)(lastRun<<ML_BITS);
         memcpy(op, anchor, iend - anchor);
         op += iend-anchor;
     }
