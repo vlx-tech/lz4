@@ -334,52 +334,10 @@ static int LZ4HC_compress_optimal (
                     goto encode;
                 }
 
-#if 1
                 if (!LZ4HC_addCandidate(opt, &last_match_pos, cur, newML, offset))
                     break;  /* this match wasn't useful, let's stop the serie */
-#else
-                /* set prices from position = cur */
-                {   int matchUseful = 1;
-                    size_t ml;
 
-                    /* update base cost to compare to : add literals */
-                    assert(cur+newML < LZ4_OPT_NUM);  /* otherwise, immediate encoding */
-                    assert(cur+1 <= last_match_pos);
-                    for (ml = last_match_pos - cur + 1; ml <= newML; ml++) {
-                        U32 const pos = (U32)(cur + ml);
-                        opt[pos].mlen = 1;  /* literal */
-                        opt[pos].off = 0;
-                        assert(pos >= 1);
-                        if (opt[pos-1].mlen >= MINMATCH) { /* follows a match */
-                            opt[pos].litlen = 1;
-                            opt[pos].price = (int)(opt[pos-1].price + LZ4HC_literalsPrice(1));
-                        } else {
-                            opt[pos].litlen = opt[pos-1].litlen + 1;
-                            opt[pos].price = (int)(opt[pos-1].price - LZ4HC_literalsPrice(opt[pos-1].litlen) + LZ4HC_literalsPrice(opt[pos].litlen));
-                    }   }
-                    for (ml = MINMATCH ; ml <= newML ; ml++) {
-                        size_t ll, price;
-                        if (opt[cur].mlen == 1) {
-                            ll = opt[cur].litlen;
-                            if (cur > ll)
-                                price = opt[cur - ll].price + LZ4HC_sequencePrice(ll, ml);
-                            else  /* some literals before ip */
-                                price = LZ4HC_sequencePrice(ll, ml);
-                        } else {
-                            ll = 0;
-                            price = opt[cur].price + LZ4HC_sequencePrice(0, ml);
-                        }
-                        DEBUGLOG(7, "pos:%u - candidate cost %u vs existing %u",
-                            (U32)(cur+ml), (U32)price, (U32)opt[cur+ml].price);
-                        if (ml == newML)
-                            matchUseful = (price < (size_t)opt[cur+ml].price);
-                        if (price < (size_t)opt[cur+ml].price) {
-                            SET_PRICE(cur+ml /*pos*/, ml, offset, ll, price); /* updates last_match_pos and opt[pos] */
-                    }   }
-                    if (!matchUseful) break;  /* this match wasn't useful, let's stop the serie */
-                }  /* matchUseful, ml */
-#endif
-            }  /* matchPtr, newML */
+            }  /* offset, newML */
         }  /* check further positions */
 
         best_mlen = opt[last_match_pos].mlen;
