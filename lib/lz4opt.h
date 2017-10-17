@@ -271,7 +271,7 @@ static int LZ4HC_compress_optimal (
                         (U32)newML, (U32)cur);
 
                 if ( (newML > sufficient_len)
-                  || (cur+newML>=LZ4_OPT_NUM-1) ) {
+                  || (cur+newML >= LZ4_OPT_NUM-1) ) {
                     /* immediate encoding */
                     best_mlen = newML;
                     best_off = offset;
@@ -283,22 +283,21 @@ static int LZ4HC_compress_optimal (
                 {   int matchUseful = 1;
                     size_t ml;
 
-                    /* update base cost : add literals */
+                    /* update base cost to compare to : add literals */
                     assert(cur+newML < LZ4_OPT_NUM);  /* otherwise, immediate encoding */
                     assert(cur+1 <= last_match_pos);
-                    for (ml = 2; ml <= newML; ml++) {
-                        if (cur+ml > last_match_pos) {
-                            U32 const pos = (U32)(cur + ml);
-                            opt[pos].mlen = 1;  /* literal */
-                            opt[pos].off = 0;
-                            assert(pos >= 1);
-                            if (opt[pos-1].mlen >= MINMATCH) { /* follows a match */
-                                opt[pos].litlen = 1;
-                                opt[pos].price = (int)(opt[pos-1].price + LZ4HC_literalsPrice(1));
-                            } else {
-                                opt[pos].litlen = opt[pos-1].litlen + 1;
-                                opt[pos].price = (int)(opt[pos-1].price - LZ4HC_literalsPrice(opt[pos-1].litlen) + LZ4HC_literalsPrice(opt[pos].litlen));
-                    }   }   }
+                    for (ml = last_match_pos - cur + 1; ml <= newML; ml++) {
+                        U32 const pos = (U32)(cur + ml);
+                        opt[pos].mlen = 1;  /* literal */
+                        opt[pos].off = 0;
+                        assert(pos >= 1);
+                        if (opt[pos-1].mlen >= MINMATCH) { /* follows a match */
+                            opt[pos].litlen = 1;
+                            opt[pos].price = (int)(opt[pos-1].price + LZ4HC_literalsPrice(1));
+                        } else {
+                            opt[pos].litlen = opt[pos-1].litlen + 1;
+                            opt[pos].price = (int)(opt[pos-1].price - LZ4HC_literalsPrice(opt[pos-1].litlen) + LZ4HC_literalsPrice(opt[pos].litlen));
+                    }   }
                     for (ml = MINMATCH ; ml <= newML ; ml++) {
                         size_t ll, price;
                         if (opt[cur].mlen == 1) {
