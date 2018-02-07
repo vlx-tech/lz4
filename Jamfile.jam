@@ -1,0 +1,16 @@
+# lz4
+
+SubDir TOP external lz4 ;
+
+HEADERS += lz4.h lz4hc.h lz4opt.h ;
+HEADERS = $(SUBDIR)/lib/$(HEADERS) ;
+
+SOURCES += 
+    lz4.c 
+    lz4hc.c
+;
+SOURCES = $(SUBDIR)/lib/$(SOURCES) ;
+
+CopyFiles external-lz4 : $(SUBDIR)/.include/lz4 : $(HEADERS) ;
+C.IncludeDirectories * : .include ;
+C.Library external-lz4 : $(SOURCES) ;
