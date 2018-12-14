@@ -1,6 +1,6 @@
 # ##########################################################################
 # LZ4 programs - Makefile
-# Copyright (C) Yann Collet 2011-2016
+# Copyright (C) Yann Collet 2011-2017
 #
 # This Makefile is validated for Linux, macOS, *BSD, Hurd, Solaris, MSYS2 targets
 #
@@ -41,14 +41,14 @@ LIBVER_MINOR := $(shell echo $(LIBVER_MINOR_SCRIPT))
 LIBVER_PATCH := $(shell echo $(LIBVER_PATCH_SCRIPT))
 LIBVER   := $(shell echo $(LIBVER_SCRIPT))
 
-SRCFILES := $(wildcard $(LZ4DIR)/*.c) $(wildcard *.c)
-OBJFILES := $(patsubst %.c,%.o,$(SRCFILES))
+SRCFILES := $(sort $(wildcard $(LZ4DIR)/*.c) $(wildcard *.c))
+OBJFILES := $(SRCFILES:.c=.o)
 
 CPPFLAGS += -I$(LZ4DIR) -DXXH_NAMESPACE=LZ4_
 CFLAGS   ?= -O3
 DEBUGFLAGS:=-Wall -Wextra -Wundef -Wcast-qual -Wcast-align -Wshadow \
-           -Wswitch-enum -Wdeclaration-after-statement -Wstrict-prototypes \
-           -Wpointer-arith -Wstrict-aliasing=1
+            -Wswitch-enum -Wdeclaration-after-statement -Wstrict-prototypes \
+            -Wpointer-arith -Wstrict-aliasing=1
 CFLAGS   += $(DEBUGFLAGS) $(MOREFLAGS)
 FLAGS     = $(CFLAGS) $(CPPFLAGS) $(LDFLAGS)
 
@@ -81,15 +81,15 @@ lz4: $(OBJFILES)
 lz4-release: DEBUGFLAGS=
 lz4-release: lz4
 
+lz4c: lz4
+	ln -s lz4$(EXT) lz4c$(EXT)
+
 lz4c32: CFLAGS += -m32
 lz4c32 : $(SRCFILES)
 	$(CC) $(FLAGS) $^ -o $@$(EXT)
 
-lz4c: lz4
-	ln -s lz4 lz4c
-
-lz4.1: lz4.1.md
-	cat $^ | $(MD2ROFF) $(MD2ROFF_FLAGS) | sed -n '/^\.\\\".*/!p' > $@
+lz4.1: lz4.1.md $(LIBVER_SRC)
+	cat $< | $(MD2ROFF) $(MD2ROFF_FLAGS) | sed -n '/^\.\\\".*/!p' > $@
 
 man: lz4.1
 
@@ -102,20 +102,37 @@ preview-man: clean-man man
 clean:
 	@$(MAKE) -C $(LZ4DIR) $@ > $(VOID)
 	@$(RM) core *.o *.test tmp* \
-           lz4$(EXT) lz4c$(EXT) lz4c32$(EXT) unlz4 lz4cat
+           lz4$(EXT) lz4c$(EXT) lz4c32$(EXT) unlz4$(EXT) lz4cat$(EXT)
 	@echo Cleaning completed
 
 
 #-----------------------------------------------------------------------------
 # make install is validated only for Linux, OSX, BSD, Hurd and Solaris targets
 #-----------------------------------------------------------------------------
-ifneq (,$(filter $(shell uname),Linux Darwin GNU/kFreeBSD GNU OpenBSD FreeBSD NetBSD DragonFly SunOS))
+ifneq (,$(filter $(shell uname),Linux Darwin GNU/kFreeBSD GNU OpenBSD FreeBSD NetBSD DragonFly SunOS Haiku MidnightBSD))
 
 unlz4: lz4
-	ln -s lz4 unlz4
+	ln -s lz4$(EXT) unlz4$(EXT)
 
 lz4cat: lz4
-	ln -s lz4 lz4cat
+	ln -s lz4$(EXT) lz4cat$(EXT)
+
+DESTDIR     ?=
+# directory variables : GNU conventions prefer lowercase
+# see https://www.gnu.org/prep/standards/html_node/Makefile-Conventions.html
+# support both lower and uppercase (BSD), use lowercase in script
+PREFIX      ?= /usr/local
+prefix      ?= $(PREFIX)
+EXEC_PREFIX ?= $(prefix)
+exec_prefix ?= $(EXEC_PREFIX)
+BINDIR      ?= $(exec_prefix)/bin
+bindir      ?= $(BINDIR)
+DATAROOTDIR ?= $(prefix)/share
+datarootdir ?= $(DATAROOTDIR)
+MANDIR      ?= $(datarootdir)/man
+mandir      ?= $(MANDIR)
+MAN1DIR     ?= $(mandir)/man1
+man1dir     ?= $(MAN1DIR)
 
 ifneq (,$(filter $(shell uname),SunOS))
 INSTALL ?= ginstall
@@ -123,50 +140,33 @@ else
 INSTALL ?= install
 endif
 
-DESTDIR     ?=
-# directory variables : GNU convention prefers lowercase
-# support both lower and uppercase (BSD), use uppercase in script
-prefix      ?= /usr/local
-PREFIX      ?= $(prefix)
-exec_prefix ?= $(PREFIX)
-bindir      ?= $(exec_prefix)/bin
-BINDIR      ?= $(bindir)
-datarootdir ?= $(PREFIX)/share
-mandir      ?= $(datarootdir)/man
-
-ifneq (,$(filter $(shell uname),OpenBSD FreeBSD NetBSD DragonFly SunOS))
-MANDIR  ?= $(PREFIX)/man/man1
-else
-MANDIR  ?= $(mandir)
-endif
-
 INSTALL_PROGRAM ?= $(INSTALL) -m 755
 INSTALL_DATA    ?= $(INSTALL) -m 644
 
 
-install: lz4$(EXT) lz4c$(EXT)
+install: lz4
 	@echo Installing binaries
-	@$(INSTALL) -d -m 755 $(DESTDIR)$(BINDIR)/ $(DESTDIR)$(MANDIR)/
-	@$(INSTALL_PROGRAM) lz4 $(DESTDIR)$(BINDIR)/lz4
-	@ln -sf lz4 $(DESTDIR)$(BINDIR)/lz4cat
-	@ln -sf lz4 $(DESTDIR)$(BINDIR)/unlz4
-	@$(INSTALL_PROGRAM) lz4c$(EXT) $(DESTDIR)$(BINDIR)/lz4c
+	@$(INSTALL) -d -m 755 $(DESTDIR)$(bindir)/ $(DESTDIR)$(man1dir)/
+	@$(INSTALL_PROGRAM) lz4$(EXT) $(DESTDIR)$(bindir)/lz4$(EXT)
+	@ln -sf lz4$(EXT) $(DESTDIR)$(bindir)/lz4c$(EXT)
+	@ln -sf lz4$(EXT) $(DESTDIR)$(bindir)/lz4cat$(EXT)
+	@ln -sf lz4$(EXT) $(DESTDIR)$(bindir)/unlz4$(EXT)
 	@echo Installing man pages
-	@$(INSTALL_DATA) lz4.1 $(DESTDIR)$(MANDIR)/lz4.1
-	@ln -sf lz4.1 $(DESTDIR)$(MANDIR)/lz4c.1
-	@ln -sf lz4.1 $(DESTDIR)$(MANDIR)/lz4cat.1
-	@ln -sf lz4.1 $(DESTDIR)$(MANDIR)/unlz4.1
+	@$(INSTALL_DATA) lz4.1 $(DESTDIR)$(man1dir)/lz4.1
+	@ln -sf lz4.1 $(DESTDIR)$(man1dir)/lz4c.1
+	@ln -sf lz4.1 $(DESTDIR)$(man1dir)/lz4cat.1
+	@ln -sf lz4.1 $(DESTDIR)$(man1dir)/unlz4.1
 	@echo lz4 installation completed
 
 uninstall:
-	@$(RM) $(DESTDIR)$(BINDIR)/lz4cat
-	@$(RM) $(DESTDIR)$(BINDIR)/unlz4
-	@$(RM) $(DESTDIR)$(BINDIR)/lz4
-	@$(RM) $(DESTDIR)$(BINDIR)/lz4c
-	@$(RM) $(DESTDIR)$(MANDIR)/lz4.1
-	@$(RM) $(DESTDIR)$(MANDIR)/lz4c.1
-	@$(RM) $(DESTDIR)$(MANDIR)/lz4cat.1
-	@$(RM) $(DESTDIR)$(MANDIR)/unlz4.1
+	@$(RM) $(DESTDIR)$(bindir)/lz4cat$(EXT)
+	@$(RM) $(DESTDIR)$(bindir)/unlz4$(EXT)
+	@$(RM) $(DESTDIR)$(bindir)/lz4$(EXT)
+	@$(RM) $(DESTDIR)$(bindir)/lz4c$(EXT)
+	@$(RM) $(DESTDIR)$(man1dir)/lz4.1
+	@$(RM) $(DESTDIR)$(man1dir)/lz4c.1
+	@$(RM) $(DESTDIR)$(man1dir)/lz4cat.1
+	@$(RM) $(DESTDIR)$(man1dir)/unlz4.1
 	@echo lz4 programs successfully uninstalled
 
 endif

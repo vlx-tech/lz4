@@ -32,3 +32,6 @@ bin/
 
 # hidden folders
 .*/
+# Windows / Msys
+nul
+ld.exe*
